@@ -18,7 +18,7 @@ Para usar esta alarma, agregue el siguiente código en su archivo de configuraci
   from = me@mydomain.com
   subject = "Alarm message from weewx!"
   
-En este ejemplo, si la temperatura exterior cae debajo de los 40 F°, se enviara un correo electrónico
+En este ejemplo, si el viento detectado mantiene una velocidad de 12 Km/h durante 8 minutos o mas, se enviara un correo electrónico
 a la lista separada por comas especificada en la opcion "mailto", en este caso
 auser@adomain.com, another@somewhere.com
 
