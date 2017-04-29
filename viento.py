@@ -9,7 +9,7 @@
 Para usar esta alarma, agregue el siguiente código en su archivo de configuración weewx.conf:
 
 [Alarm]
-  expression = "outTemp < 40.0"
+  expression = "windSpeed > 3.33"
   time_wait = 3600
   smtp_host = smtp.mymailserver.com
   smtp_user = myusername
@@ -18,7 +18,7 @@ Para usar esta alarma, agregue el siguiente código en su archivo de configuraci
   from = me@mydomain.com
   subject = "Alarm message from weewx!"
   
-En este ejemplo, si la temperatura exterior cae debajo de los 40 F°, se enviara un correo electrónico
+En este ejemplo, si la velocidad del viento es mayor a 12km/h (3.33 m/s) por mas de 5 minutos, se enviara un correo electrónico
 a la lista separada por comas especificada en la opcion "mailto", en este caso
 auser@adomain.com, another@somewhere.com
 
