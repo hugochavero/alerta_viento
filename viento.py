@@ -5,29 +5,21 @@
 #    Vea el archivo LICENSE.txt para comprender sus derechos.
 #
 """ 
-
-********************************************************************************
-
 Para usar esta alarma, agregue el siguiente código en su archivo de configuración weewx.conf:
 
+------------------------ Configuracion Correo ---------------------------------
+
+Si aun no ha configurado su servidor SMTP agrege las siguientes lineas:
+
 [Alarm]
-  wind_wind_expression = "windSpeed > 3.33"
-  wind_wind_time_event = 300
-  wind_time_wait = 3600
-  wind_subject = "Alarm message from weewx!"
   smtp_host = smtp.mymailserver.com
   smtp_user = myusername
   smtp_password = mypassword
   mailto = auser@adomain.com, anotheruser@someplace.com
   from = me@mydomain.com
-  
-En este ejemplo, si la velocidad del viento es mayor a 12km/h (3.33 m/s)(variable wind_wind_expression)
-por mas de 5 minutos (300s)(variable wind_wind_time_event), se enviara un correo electrónico
-a la lista separada por comas especificada en la opcion "mailto", en este caso
-auser@adomain.com, another@somewhere.com
 
-El ejemplo asume que su servidor de correo SMTP se encuentra en smtp.mymailserver.com y
-que utiliza un logeo seguro (secure logins). Si esto no fuera asi, deje libres las lines
+Se asume que el servidor de correo SMTP se encuentra en smtp.mymailserver.com y
+que utiliza un logeo seguro (secure logins). Si esto no fuera asi, deje libres las lineas
 para smtp_user y smtp_password y no se intentara ningun logeo de acceso.
 
 La configuracion del remitente en el correo es opcional. Si Usted no brinda la misma, una de facto sera instroducida; pero
@@ -35,7 +27,30 @@ su servidor SMTP puede que no la acepte
 
 La configuracion del valor "asunto" (subjet) en el correo electronico es opcional. Si Usted no brinda la misma, una de facto sera instroducida.
 
-Para evitar una catarata de correos electrónicos, se configuró el valor time_wait para que mande uno cada 3600 segundos (una hora).
+------------------------ Configuracion Alarma ---------------------------------
+
+Para configurar la alarma misma debe agregar las siguientes lineas, tambien al archivo de configuracion weewx.conf:
+
+[Alarm]
+  wind_wind_expression = "windSpeed > 3.33"
+  wind_wind_time_event = 300
+  wind_time_wait = 3600
+  wind_subject = "Alarm message from weewx!"
+  
+En este ejemplo, si la velocidad del viento es mayor a 12km/h (3.33 m/s)
+por mas de 5 minutos, se enviara un correo electrónico a la lista separada por comas
+ especificada en la opcion "mailto", en este caso
+auser@adomain.com, another@somewhere.com
+
+- La variable wind_wind_expression representa la condicion por la cual se debe disparar la alarma,
+en este caso seria si la velocidad del viento es mayor a 3.33 metros por segundo.
+- La variable wind_wind_time_event representa el tiempo minimo en el que debe cumplirse
+la condicion anterior para que se dispare la alarma. Es decir que la alarma se dispara solo si el viento
+es superior a  3.33m/s durante mas de 300 seguntos.
+- La variable wind_time_wait indica que el tiempo que debe pasar para que
+el sistema vuelva a enviar una nueva alarma.
+- La variable wind_subject contiene el asunto del email que se enviara en la alarma.
+
 
 ********************************************************************************
 
@@ -47,10 +62,11 @@ configuración (weewx.conf) dentro de la seccion de configuración "report_servi
     ...
     report_services = weewx.engine.StdPrint, weewx.engine.StdReport, examples.alarm.WindAlarm
 
+
 ********************************************************************************
 
-Si Usted desea usar a la vez este ejemplo de alerta y el ejemplo lowBattery.py, simplemente debera fusionar
-las dos opciones de configuracion bajo [Alarm] y agregar los dos servicios a
+Si Usted desea usar a la vez este ejemplo de alerta y el ejemplo lowBattery.py, 
+simplemente debera fusionar las dos opciones de configuracion bajo [Alarm] y agregar los dos servicios a
 report_services.
 
 ********************************************************************************
@@ -78,6 +94,8 @@ class WindAlarm(StdService):
         self.last_msg_ts = 0
         # En esta variable se acumula tiempo en segundos
         self.time_event = 0
+        # Esta variable indica si previamente la alarma ha sido disparada
+        self.was_event = False
         
         try:
             # Dig the needed options out of the configuration dictionary.
@@ -106,7 +124,7 @@ class WindAlarm(StdService):
         # To avoid a flood of nearly identical emails, this will do
         # the check only if we have never sent an email, or if we haven't
         # sent one in the last self.time_wait seconds:
-        if not self.last_msg_ts or abs(time.time() - self.last_msg_ts) >= self.time_wait :
+        if self.was_event or (not self.last_msg_ts or abs(time.time() - self.last_msg_ts) >= self.time_wait):
             # Get the new archive record:
             record = event.record
             
@@ -126,6 +144,8 @@ class WindAlarm(StdService):
                         t.start()
                         # Record when the message went out:
                         self.last_msg_ts = time.time()
+                        self.was_event = True
+                        
                     # Si mi estacion se encuentra en modo simulador
                     if 'Simulator' in config_dict['Alarm'].get('station_type', ''):
                         # Sumo el valor de la variable loop_interval
@@ -136,21 +156,27 @@ class WindAlarm(StdService):
                 else:
                     # Si mi evento permanece fuera del valor deseado, reestablesco la variable time_event
                     self.time_event = 0
+                    # Reestablezco la variable was_event
+                    self.was_event = False
+                    # Envio notificacion indicando que el evento ha terminado
+                    t  = threading.Thread(target = WindAlarm.soundTheAlarm, args=(self, record, False))
+                    t.start()
+                    
             except NameError, e:
                 # The record was missing a named variable. Write a debug message, then keep going
                 syslog.syslog(syslog.LOG_DEBUG, "alarm: %s" % e)
 
-    def soundTheAlarm(self, rec):
-        """This function is called when the given expression evaluates True."""
+    def soundTheAlarm(self, rec, status=True):
+        """This function is called when the given expression evaluates True or False."""
         
         # Get the time and convert to a string:
         t_str = timestamp_to_string(rec['dateTime'])
 
         # Log it in the system log:
-        syslog.syslog(syslog.LOG_INFO, "alarm: Alarm expression \"%s\" evaluated True at %s" % (self.expression, t_str))
+        syslog.syslog(syslog.LOG_INFO, "alarm: Alarm expression '{}' evaluated {} at {}" % (self.expression, status, t_str))
 
         # Form the message text:
-        msg_text = "Alarm expression \"%s\" evaluated True at %s\nRecord:\n%s" % (self.expression, t_str, str(rec))
+        msg_text = "Alarm expression '{}' evaluated {} at {}\nRecord:\n{}".format(self.expression, status, t_str, str(rec))
         # Convert to MIME:
         msg = MIMEText(msg_text)
         
@@ -235,3 +261,4 @@ if __name__ == '__main__':
 
     event = weewx.Event(weewx.NEW_ARCHIVE_RECORD, record=rec)
     alarm.newArchiveRecord(event)
+
