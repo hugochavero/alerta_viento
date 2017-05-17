@@ -156,12 +156,10 @@ class WindAlarm(StdService):
                 
         elif self.in_event and (not eval_expresion):
             self.in_event = False
-            syslog.syslog(syslog.LOG_INFO, "VIENTO ************  pre alarm off")
-            #self.soundTheAlarm(record, self.in_event)
+            syslog.syslog(syslog.LOG_INFO, "VIENTO ******* pre alarm off")
             t = threading.Thread(target = WindAlarm.soundTheAlarm, args=(self, record))
             t.start()
-            t.join()
-            syslog.syslog(syslog.LOG_INFO, "VIENTO ************* post alarm off")
+            syslog.syslog(syslog.LOG_INFO, "VIENTO ******* post alarm off")
             
     
     def soundTheAlarm(self, rec):
